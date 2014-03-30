@@ -222,16 +222,20 @@ func createCommand(control byte, function byte, data []byte) error {
 	return nil
 }
 
-// http://www.picaxeforum.co.uk/showthread.php?17872-Calculating-checksums-for-serial-communication-%28yuk!%29
-func checksum(data []byte) (byte, byte) {
-	var sum1, sum2 byte = 0, 0
+func checksum(data []byte) (byte,byte) {
+	var sum uint16 = 0
 
-	for idx := 0; idx < len(data); idx++ {
-		sum1 += data[idx]
-		sum1 %= 255
-		sum2 += sum1
-		sum2 %= 255
-
+	for i := 0; i < len(data); i++ {
+		log.Printf("datai sum %v %v\n", data[i], sum)
+		sum += uint16(data[i])
 	}
-	return sum1, sum2
+
+	// Flip bits (XOR)
+	sum ^= 0xffff
+	sum++
+
+	check1 := byte((sum & 0xff00) >> 8)
+	check2 := byte(sum & 0x00ff)
+	return check1, check2
 }
+
