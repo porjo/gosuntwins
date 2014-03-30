@@ -2,14 +2,13 @@ package main
 
 import (
 	"bytes"
-//	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"log"
-	//"time"
+	"time"
 
-//	"github.com/tarm/goserial"
+	"github.com/tarm/goserial"
 )
 
 var outbuffer bytes.Buffer
@@ -23,19 +22,14 @@ const headerlen int = 7
 
 var serialPort string = "/dev/ttyUSB0"
 
-type RWC struct{}
-
 func main() {
-	/*
-		c := &serial.Config{Name: serialPort, Baud: 9600}
-		s, err := serial.OpenPort(c)
-		if err != nil {
-			log.Fatal(err)
-		}
-	*/
+	c := &serial.Config{Name: serialPort, Baud: 9600}
+	s, err := serial.OpenPort(c)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	s := RWC{}
-	err := initInverter(s)
+	err = initInverter(s)
 	if err != nil {
 		log.Println(err)
 		return
@@ -53,22 +47,6 @@ func main() {
 
 }
 
-func (rwc RWC) Read(p []byte) (n int, err error) {
-	copy(p, []byte("Header812345678912345678912"))
-	if p != nil {
-		p[6] = 20
-	}
-	return 27, nil
-}
-
-func (rwc RWC) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-func (rwc RWC) Close() (err error) {
-	return nil
-}
-
 func initInverter(s io.ReadWriteCloser) error {
 	var control byte = 0x30
 	var function byte = 0x44
@@ -84,7 +62,7 @@ func initInverter(s io.ReadWriteCloser) error {
 	}
 
 	// wait before sending next command
-	//time.Sleep(time.Second)
+	time.Sleep(time.Second)
 
 	function = 0x40
 	err = createCommand(control, function, nil)
@@ -108,9 +86,9 @@ func initInverter(s io.ReadWriteCloser) error {
 	inbuffer.Write(inbuf[:n])
 
 	// wait before sending next command
-	//time.Sleep(time.Second)
+	time.Sleep(time.Second)
 
-	log.Printf("inbuf %#v, n=%d\n", inbuf, n)
+	log.Printf("inbuf %#v, n=%d\n", inbuf[:n], n)
 	function = 0x41
 	// get the serial number from the response
 	//serno := make([]byte,inbuf[6])
@@ -130,13 +108,15 @@ func initInverter(s io.ReadWriteCloser) error {
 	if err != nil {
 		return err
 	}
-	n, err = s.Read(nil)
+
+	n, err = s.Read(inbuf)
 	if err != nil {
 		return err
 	}
 	if n < headerlen {
 		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
 	}
+	log.Printf("inbuf %#v, n=%d\n", inbuf[:n], n)
 
 	return nil
 }
@@ -162,6 +142,8 @@ func readInverter(s io.ReadWriteCloser) error {
 	if n < headerlen {
 		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
 	}
+
+	log.Printf("inbuf %#v, n=%d\n", inbuf[:n], n)
 	inbuffer.Reset()
 	inbuffer.Write(inbuf[:n])
 
@@ -222,11 +204,11 @@ func createCommand(control byte, function byte, data []byte) error {
 	return nil
 }
 
-func checksum(data []byte) (byte,byte) {
+func checksum(data []byte) (byte, byte) {
 	var sum uint16 = 0
 
 	for i := 0; i < len(data); i++ {
-		log.Printf("datai sum %v %v\n", data[i], sum)
+		//log.Printf("datai sum %v %v\n", data[i], sum)
 		sum += uint16(data[i])
 	}
 
@@ -238,4 +220,3 @@ func checksum(data []byte) (byte,byte) {
 	check2 := byte(sum & 0x00ff)
 	return check1, check2
 }
-
