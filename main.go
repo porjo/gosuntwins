@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
+//	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -56,7 +56,7 @@ func main() {
 func (rwc RWC) Read(p []byte) (n int, err error) {
 	copy(p, []byte("Header812345678912345678912"))
 	if p != nil {
-		p[6] = 20 
+		p[6] = 20
 	}
 	return 27, nil
 }
@@ -210,41 +210,28 @@ func createCommand(control byte, function byte, data []byte) error {
 		outbuffer.Write(data)
 	}
 
-	sum1, sum2, err := checksum(headerlen + len(data))
-	if err != nil {
-		return err
-	}
+	sum1, sum2 := checksum(outbuffer.Bytes())
 
+	log.Printf("sum1 %#v sum2 %#v\n", sum1, sum2)
 
-	outbuffer.WriteByte(byte(sum1))
-	outbuffer.WriteByte(byte(sum2))
+	outbuffer.WriteByte(sum1)
+	outbuffer.WriteByte(sum2)
 	outbuffer.WriteByte('\n')
 	outbuffer.WriteByte('\r')
 
 	return nil
 }
 
-// Fletcher's checksum
-// http://en.wikipedia.org/wiki/Fletcher%27s_checksum
-func checksum(length int) (uint64, uint64, error) {
-	var sum1, sum2 uint64 = 0,0
+// http://www.picaxeforum.co.uk/showthread.php?17872-Calculating-checksums-for-serial-communication-%28yuk!%29
+func checksum(data []byte) (byte, byte) {
+	var sum1, sum2 byte = 0, 0
 
-	reader := bytes.NewReader(outbuffer.Bytes())
-	for idx := 0; idx < length; idx++ {
-		i, err := binary.ReadUvarint(reader)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return 0,0, err
-		}
-		sum1 += i
+	for idx := 0; idx < len(data); idx++ {
+		sum1 += data[idx]
+		sum1 %= 255
+		sum2 += sum1
+		sum2 %= 255
 
 	}
-	// Toggle bits (XOR)
-	sum1 ^= 0xffff
-	//apply bitmask
-	sum2 = (sum1 + 1) & 0x00ff
-	sum1 = (sum1 & 0xff00) >> 8
-	return sum1, sum2, nil
+	return sum1, sum2
 }
