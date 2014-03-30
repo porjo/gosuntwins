@@ -210,12 +210,12 @@ func createCommand(control byte, function byte, data []byte) error {
 		outbuffer.Write(data)
 	}
 
-	sum1, sum2 := checksum(outbuffer.Bytes())
+	check1, check2 := checksum(outbuffer.Bytes())
 
-	log.Printf("sum1 %#v sum2 %#v\n", sum1, sum2)
+	log.Printf("check1 %#v check2 %#v\n", check1, check2)
 
-	outbuffer.WriteByte(sum1)
-	outbuffer.WriteByte(sum2)
+	outbuffer.WriteByte(check1)
+	outbuffer.WriteByte(check2)
 	outbuffer.WriteByte('\n')
 	outbuffer.WriteByte('\r')
 
