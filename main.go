@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/tarm/goserial"
@@ -30,12 +31,12 @@ var outbuffer bytes.Buffer
 var inbuffer bytes.Buffer
 
 const sourceaddr byte = 1
-var destaddr byte = 0
 const headerlen int = 7
+const serialPort string = "/dev/ttyUSB0"
+const dataFile string = "/home/user/data.csv"
+const period int = 10 //seconds between reads
 
-var serialPort string = "/dev/ttyUSB0"
-var dataFile string = "data.csv"
-
+var destaddr byte = 0
 var debug bool = true
 var results map[string]float32 = make(map[string]float32)
 
@@ -43,31 +44,39 @@ func main() {
 	c := &serial.Config{Name: serialPort, Baud: 9600}
 	s, err := serial.OpenPort(c)
 	if err != nil {
-		mylogln(err)
+		log.Println(err)
 		return
 	}
 
+	mylogf("Writing results to file '%s'\n", dataFile)
+
 	err = initInverter(s)
 	if err != nil {
-		mylogln(err)
+		log.Println(err)
 		return
 	}
+
+	var w sync.WaitGroup
+	w.Add(1)
 
 	go func() {
 		for {
 			err = readInverter(s)
 			if err != nil {
-				mylogln(err)
-				return
+				log.Println(err)
+				break
 			}
 			err = outputInverter()
 			if err != nil {
-				mylogln(err)
-				return
+				log.Println(err)
+				break
 			}
-			time.Sleep(time.Second * 30)
+			time.Sleep(time.Second * time.Duration(period))
 		}
+		w.Done()
 	}()
+
+	w.Wait()
 }
 
 func mylogf(format string, args ...interface{}) {
@@ -152,15 +161,25 @@ func initInverter(s io.ReadWriteCloser) error {
 	}
 
 	inbuf = nil
-	n, err = s.Read(inbuf)
-	if err != nil {
-		return err
+	bytecount := 0
+	for {
+		tmpbuf := make([]byte, 256)
+		n, err = s.Read(tmpbuf)
+		inbuf = append(inbuf, tmpbuf[:n]...)
+		bytecount += n
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			mylogf("Read %d bytes\n", bytecount)
+			return err
+		}
 	}
-	if n < headerlen {
+	if bytecount < headerlen {
 		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
 	}
 
-	mylogf("Read data: <=  %X\n", inbuf[:n])
+	mylogf("Read data: <=  %X\n", inbuf[:bytecount])
 
 	return nil
 }
@@ -174,7 +193,7 @@ func readInverter(s io.ReadWriteCloser) error {
 		return err
 	}
 
-	mylogf("Requesting data: => %X\n", outbuffer.Bytes())
+	mylogf("Requesting current readings: => %X\n", outbuffer.Bytes())
 
 	n, err := s.Write(outbuffer.Bytes())
 	if err != nil {
@@ -187,11 +206,11 @@ func readInverter(s io.ReadWriteCloser) error {
 		n, err = s.Read(tmpbuf)
 		inbuf = append(inbuf, tmpbuf[:n]...)
 		bytecount += n
-		mylogf("Read %d bytes\n", bytecount)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
+			mylogf("Read %d bytes\n", bytecount)
 			return err
 		}
 	}
@@ -232,13 +251,16 @@ func outputInverter() error {
 	results["PV AC"] = float32(output.PAC) / 10.0
 
 	resultsStr := fmt.Sprintf("%s, ", time.Now())
-	for k, v := range results {
-		resultsStr += fmt.Sprintf("%s:%f, ", k, v)
+	for _, val := range results {
+		resultsStr += fmt.Sprintf("%.3f, ", val)
 	}
 	resultsStr += "\n"
 
 	mylogf(resultsStr)
-	writeLine(dataFile, resultsStr)
+	err = writeLine(dataFile, resultsStr)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -263,7 +285,7 @@ func createCommand(control byte, function byte, data []byte) error {
 
 	check1, check2 := checksum(outbuffer.Bytes())
 
-	mylogf("check1 %#v check2 %#v\n", check1, check2)
+	//mylogf("check1 %#v check2 %#v\n", check1, check2)
 
 	outbuffer.WriteByte(check1)
 	outbuffer.WriteByte(check2)
@@ -291,11 +313,11 @@ func checksum(data []byte) (byte, byte) {
 }
 
 func writeLine(filename string, line string) error {
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND, 0660)
-	defer f.Close()
+	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
 	_, err = f.WriteString(line)
 	if err != nil {
