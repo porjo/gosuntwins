@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"flag"
 	"io"
 	"log"
 	"os"
@@ -32,28 +33,48 @@ var inbuffer bytes.Buffer
 
 const sourceaddr byte = 1
 const headerlen int = 7
-const serialPort string = "/dev/ttyUSB0"
-const dataFile string = "/home/user/data.csv"
 const period int = 10 //seconds between reads
 
 var destaddr byte = 0
-var debug bool = true
 var results map[string]float32 = make(map[string]float32)
 
+var debug bool
+var serialPort string
+var dataFile *os.File
+
 func main() {
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, " -d          Enable debug messages  (false)\n")
+		fmt.Fprintf(os.Stderr, " -p [port]   serial port            (/dev/ttyUSB0)\n")
+		fmt.Fprintf(os.Stderr, " -f [file]   data file              (/tmp/solarmon.csv)\n\n")
+	}
+
+	flag.BoolVar(&debug, "d", false, "Enable debug messages")
+	flag.StringVar(&serialPort, "p", "/dev/ttyUSB0", "Serial port")
+	f := flag.String("f", "/tmp/solarmon.csv", "File to store output data")
+	flag.Parse()
+
+
+	dataFile, err := os.OpenFile(*f, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer dataFile.Close()
+
+
 	c := &serial.Config{Name: serialPort, Baud: 9600}
 	s, err := serial.OpenPort(c)
 	if err != nil {
-		log.Println(err)
-		return
+		log.Fatal(err)
 	}
 
 	mylogf("Writing results to file '%s'\n", dataFile)
 
 	err = initInverter(s)
 	if err != nil {
-		log.Println(err)
-		return
+		log.Fatal(err)
 	}
 
 	var w sync.WaitGroup
@@ -195,16 +216,17 @@ func readInverter(s io.ReadWriteCloser) error {
 
 	mylogf("Requesting current readings: => %X\n", outbuffer.Bytes())
 
-	n, err := s.Write(outbuffer.Bytes())
+	_, err = s.Write(outbuffer.Bytes())
 	if err != nil {
 		return err
 	}
-	var inbuf []byte
+
+	inbuffer.Reset()
 	bytecount := 0
 	for {
 		tmpbuf := make([]byte, 256)
-		n, err = s.Read(tmpbuf)
-		inbuf = append(inbuf, tmpbuf[:n]...)
+		n, err := s.Read(tmpbuf)
+		inbuffer.Write(tmpbuf[:n])
 		bytecount += n
 		if err != nil {
 			if err == io.EOF {
@@ -214,14 +236,12 @@ func readInverter(s io.ReadWriteCloser) error {
 			return err
 		}
 	}
+
+	mylogf("Read data: <=  %X\n", inbuffer.Bytes())
+
 	if bytecount < headerlen {
-		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
+		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, bytecount)
 	}
-
-	//mylogf("inbuf %X\n", inbuf)
-
-	inbuffer.Reset()
-	inbuffer.Write(inbuf)
 
 	return nil
 }
@@ -257,7 +277,7 @@ func outputInverter() error {
 	resultsStr += "\n"
 
 	mylogf(resultsStr)
-	err = writeLine(dataFile, resultsStr)
+	_, err = dataFile.WriteString(resultsStr)
 	if err != nil {
 		return err
 	}
@@ -280,7 +300,10 @@ func createCommand(control byte, function byte, data []byte) error {
 	outbuffer.WriteByte(byte(len(data)))
 
 	if data != nil {
-		outbuffer.Write(data)
+		_, err := outbuffer.Write(data)
+		if err != nil {
+			return err
+		}
 	}
 
 	check1, check2 := checksum(outbuffer.Bytes())
@@ -310,18 +333,4 @@ func checksum(data []byte) (byte, byte) {
 	check1 := byte((sum & 0xff00) >> 8)
 	check2 := byte(sum & 0x00ff)
 	return check1, check2
-}
-
-func writeLine(filename string, line string) error {
-	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(line)
-	if err != nil {
-		return err
-	}
-	return nil
 }
