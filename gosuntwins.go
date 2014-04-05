@@ -16,7 +16,6 @@ Credit:
 
 Code based on Solarmon: https://github.com/ridale/solarmon and other inspiration from Solarmonj: http://code.google.com/p/solarmonj/
 */
-
 package main
 
 import (
@@ -59,18 +58,19 @@ func main() {
 	}
 	defer dataFile.Close()
 
-	config := &serial.Config{Name: serialPort, Debug: debug}
+	config := &serial.Config{Port: serialPort, Debug: debug}
 
 	s, err := serial.OpenPort(config)
 	if err != nil {
 		log.Fatal("Error initializing inverter, ", err)
 	}
-	s.Close()
+	defer s.Close()
 
 	fmt.Printf("Writing results to file '%s'\n", *f)
 
 	for {
-		reading, err := serial.ReadInverter(s)
+		reading := &serial.Reading{}
+		err := reading.LoadData()
 		if err != nil {
 			log.Fatal("Error reading from inverter, ", err)
 			break

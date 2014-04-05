@@ -1,22 +1,19 @@
 /*
-goSuntwins is a simple utility to read data from JFY Suntwins Solar inverter
-
-Tested with Suntwins 5000TL on Linux
+serial package handles communications with inverter
 
 Example usage:
+  
+  config := &serial.Config{Port: "/dev/ttyUSB0", Debug: true}
+  s, _ := serial.OpenPort(config)
+  defer s.Close()
 
-  ./gosuntwins -d -p /dev/ttyUSB01 -f /tmp/data.csv
+  reading := &serial.Reading{}
+  reading.LoadData()
 
-Output file will contain one reading per line e.g.:
-
-  2014-04-05 13:33:43.863091911 +1000 EST, 47.700, 19.290, 254.000, 6.700, 244.900, 49.970, 4.700, 1731.000, 41.000, 1790.800, 
-  2014-04-05 13:33:54.97314362 +1000 EST, 47.700, 19.290, 253.400, 3.500, 244.000, 49.990, 1.900, 1719.000, 18.000, 808.700, 
-
-Credit:
+  // output contents of 'reading'
 
 Code based on Solarmon: https://github.com/ridale/solarmon and other inspiration from Solarmonj: http://code.google.com/p/solarmonj/
 */
-
 package serial
 
 import (
@@ -31,13 +28,13 @@ import (
 	"github.com/tarm/goserial"
 )
 
-// This struct holds the binary data read from the inverter. 
+// This struct holds the binary data read from the inverter.
 // Order of fields is important!
 type rawData struct {
 	Temp     uint16
 	Unknown1 uint16
 	VDC      uint16
-	NowE uint16
+	NowE     uint16
 	Unknown2 uint16
 	TodayE   uint16
 	I        uint16
@@ -46,7 +43,7 @@ type rawData struct {
 	PAC      uint16
 }
 
-// Holds decimal values 
+// Holds values returned from inverter
 type Reading struct {
 	// Temperature (degrees celcius)
 	Temp float32
@@ -67,9 +64,8 @@ type Reading struct {
 }
 
 type Config struct {
-	// Serial port device name
-	Name string
-
+	// Serial port device name e.g. /dev/ttyUSB0
+	Port string
 	// Enable debug output
 	Debug bool
 }
@@ -83,12 +79,17 @@ var destaddr byte = 0
 
 var config *Config
 
-func OpenPort(c *Config) (io.ReadWriteCloser,error) {
+var s io.ReadWriteCloser
+
+// Open serial port and initialize inverter
+func OpenPort(c *Config) (io.ReadWriteCloser, error) {
 
 	config = c
 
-	c2 := &serial.Config{Name: config.Name, Baud: 9600}
-	s, err := serial.OpenPort(c2)
+	var err error
+
+	c2 := &serial.Config{Name: config.Port, Baud: 9600}
+	s, err = serial.OpenPort(c2)
 	if err != nil {
 		return nil, err
 	}
@@ -101,15 +102,61 @@ func OpenPort(c *Config) (io.ReadWriteCloser,error) {
 	return s, nil
 }
 
-func mylogf(format string, args ...interface{}) {
-	if config.Debug {
-		log.Printf(format, args...)
+// LoadData populates the Reading struct with values from inverter
+func (reading *Reading) LoadData() error {
+
+	if s == nil {
+		return fmt.Errorf("Serial port not ready. Have you opened the port?")
 	}
+
+	var control byte = 0x31
+	var function byte = 0x42 //Get Dynamic data
+	destaddr = 1
+	err := createCommand(control, function, nil)
+	if err != nil {
+		return err
+	}
+
+	logf("Requesting current readings: => %X\n", outbuffer.Bytes())
+
+	_, err = s.Write(outbuffer.Bytes())
+	if err != nil {
+		return err
+	}
+
+	inbuf, err := readtoEOF(s)
+	if err != nil {
+		return err
+	}
+
+	logf("Read data: <=  %X\n", inbuf)
+
+	if len(inbuf) < headerlen+20 {
+		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen+20, inbuf)
+	}
+
+	b := bytes.NewBuffer(inbuf)
+	raw := rawData{}
+	err = binary.Read(b, binary.BigEndian, &raw)
+	if err != nil {
+		return err
+	}
+
+	reading.Temp = float32(raw.Temp) / 10.0
+	reading.TodayE = float32(raw.TodayE) / 100.0
+	reading.VDC = float32(raw.VDC) / 10.0
+	reading.I = float32(raw.I) / 10.0
+	reading.VAC = float32(raw.VAC) / 10.0
+	reading.Freq = float32(raw.Freq) / 100.0
+	reading.NowE = float32(raw.NowE) / 10.0
+	reading.PAC = float32(raw.PAC) / 10.0
+
+	return nil
 }
 
-func mylogln(args ...interface{}) {
+func logf(format string, args ...interface{}) {
 	if config.Debug {
-		log.Println(args...)
+		log.Printf(format, args...)
 	}
 }
 
@@ -121,7 +168,7 @@ func initInverter(s io.ReadWriteCloser) error {
 		return err
 	}
 
-	mylogf("Initializing inverter: => %X\n", outbuffer.Bytes())
+	logf("Initializing inverter: => %X\n", outbuffer.Bytes())
 
 	_, err = s.Write(outbuffer.Bytes())
 	if err != nil {
@@ -137,21 +184,21 @@ func initInverter(s io.ReadWriteCloser) error {
 		return err
 	}
 
-	mylogf("Identifying inverter: =>  %X\n", outbuffer.Bytes())
+	logf("Identifying inverter: =>  %X\n", outbuffer.Bytes())
 
 	n, err := s.Write(outbuffer.Bytes())
 	if err != nil {
 		return err
 	}
 
-	//mylogf("Wrote %d bytes\n", n)
+	//logf("Wrote %d bytes\n", n)
 
 	inbuf, err := readtoEOF(s)
 	if err != nil {
 		return err
 	}
 
-	mylogf("Read data: <=  %X\n", inbuf[:n])
+	logf("Read data: <=  %X\n", inbuf[:n])
 	if n < headerlen {
 		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
 	}
@@ -164,12 +211,12 @@ func initInverter(s io.ReadWriteCloser) error {
 	//serno := make([]byte,inbuf[6])
 	serno := inbuf[headerlen:(int(inbuf[6]) + headerlen + 1)]
 
-	//mylogf("headerlen %d inbuf6 %#v\n", headerlen, inbuf[6])
+	//logf("headerlen %d inbuf6 %#v\n", headerlen, inbuf[6])
 
 	// set the device id
 	serno[inbuf[6]] = 1
 
-	//mylogf("serno %#v len %d\n", serno, len(serno))
+	//logf("serno %#v len %d\n", serno, len(serno))
 
 	// now register the inverter as device id 1
 	err = createCommand(control, function, serno[:inbuf[6]+1])
@@ -177,7 +224,7 @@ func initInverter(s io.ReadWriteCloser) error {
 		return err
 	}
 
-	mylogf("Register inverter: =>  %X\n", outbuffer.Bytes())
+	logf("Register inverter: =>  %X\n", outbuffer.Bytes())
 
 	_, err = s.Write(outbuffer.Bytes())
 	if err != nil {
@@ -189,7 +236,7 @@ func initInverter(s io.ReadWriteCloser) error {
 		return err
 	}
 
-	mylogf("Read data: <=  %X\n", inbuf)
+	logf("Read data: <=  %X\n", inbuf)
 	if len(inbuf) < headerlen {
 		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, len(inbuf))
 	}
@@ -202,7 +249,7 @@ func readtoEOF(s io.ReadWriteCloser) ([]byte, error) {
 	for {
 		tmpbuf = make([]byte, 256)
 		n, err := s.Read(tmpbuf)
-		//mylogf("Read %d bytes\n", n)
+		//logf("Read %d bytes\n", n)
 		inbuf = append(inbuf, tmpbuf[:n]...)
 		if err != nil {
 			if err == io.EOF {
@@ -212,54 +259,6 @@ func readtoEOF(s io.ReadWriteCloser) ([]byte, error) {
 		}
 	}
 	return inbuf, nil
-}
-
-func ReadInverter(s io.ReadWriteCloser) (*Reading, error) {
-	var control byte = 0x31
-	var function byte = 0x42 //Get Dynamic data
-	destaddr = 1
-	err := createCommand(control, function, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	mylogf("Requesting current readings: => %X\n", outbuffer.Bytes())
-
-	_, err = s.Write(outbuffer.Bytes())
-	if err != nil {
-		return nil, err
-	}
-
-	inbuf, err := readtoEOF(s)
-	if err != nil {
-		return nil, err
-	}
-
-	mylogf("Read data: <=  %X\n", inbuf)
-
-	if len(inbuf) < headerlen+20 {
-		return nil, fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen+20, inbuf)
-	}
-
-	b := bytes.NewBuffer(inbuf)
-	raw := rawData{}
-	err = binary.Read(b, binary.BigEndian, &raw)
-	if err != nil {
-		return nil, err
-	}
-
-	reading := &Reading{}
-
-	reading.Temp = float32(raw.Temp) / 10.0
-	reading.TodayE = float32(raw.TodayE) / 100.0
-	reading.VDC = float32(raw.VDC) / 10.0
-	reading.I = float32(raw.I) / 10.0
-	reading.VAC = float32(raw.VAC) / 10.0
-	reading.Freq = float32(raw.Freq) / 100.0
-	reading.NowE = float32(raw.NowE) / 10.0
-	reading.PAC = float32(raw.PAC) / 10.0
-
-	return reading, nil
 }
 
 func createCommand(control byte, function byte, data []byte) error {
@@ -283,7 +282,7 @@ func createCommand(control byte, function byte, data []byte) error {
 
 	check1, check2 := checksum(outbuffer.Bytes())
 
-	//mylogf("check1 %#v check2 %#v\n", check1, check2)
+	//logf("check1 %#v check2 %#v\n", check1, check2)
 
 	outbuffer.WriteByte(check1)
 	outbuffer.WriteByte(check2)
@@ -297,7 +296,7 @@ func checksum(data []byte) (byte, byte) {
 	var sum uint16 = 0
 
 	for i := 0; i < len(data); i++ {
-		//mylogf("datai sum %v %v\n", data[i], sum)
+		//logf("datai sum %v %v\n", data[i], sum)
 		sum += uint16(data[i])
 	}
 
