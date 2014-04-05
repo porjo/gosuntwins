@@ -5,12 +5,12 @@ Tested with Suntwins 5000TL on Linux
 
 Example usage:
 
-  ./gosuntwins -d -p /dev/ttyUSB01 -f /tmp/data.json
+  ./gosuntwins -d -p /dev/ttyUSB01 -f /tmp/data.csv
 
-Output file will contain a json object per line e.g.:
+Output file will contain one reading per line e.g.:
 
-  {"Current":14.7,"Frequency":50.09,"KW now":7.8,"KW today":10.35,"PV AC":3643.1,"Temperature":46,"Time":"2014-04-05T10:49:52.29109101+10:00","Unknown 1":2494,"Unknown 2":75,"Volts AC":244,"Volts DC":255.1}
-  {"Current":14.5,"Frequency":50.11,"KW now":7.9,"KW today":10.36,"PV AC":3636.1,"Temperature":46,"Time":"2014-04-05T10:50:03.40009637+10:00","Unknown 1":2470,"Unknown 2":75,"Volts AC":244.9,"Volts DC":255.7}
+  2014-04-05 13:33:43.863091911 +1000 EST, 47.700, 19.290, 254.000, 6.700, 244.900, 49.970, 4.700, 1731.000, 41.000, 1790.800, 
+  2014-04-05 13:33:54.97314362 +1000 EST, 47.700, 19.290, 253.400, 3.500, 244.000, 49.990, 1.900, 1719.000, 18.000, 808.700, 
 
 Credit:
 
@@ -87,12 +87,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, " -d          Enable debug messages  (false)\n")
 		fmt.Fprintf(os.Stderr, " -p [port]   serial port            (/dev/ttyUSB0)\n")
-		fmt.Fprintf(os.Stderr, " -f [file]   data file              (/tmp/gosuntwins.json)\n\n")
+		fmt.Fprintf(os.Stderr, " -f [file]   data file              (/tmp/gosuntwins.csv)\n\n")
 	}
 
 	flag.BoolVar(&debug, "d", false, "Enable debug messages")
 	flag.StringVar(&serialPort, "p", "/dev/ttyUSB0", "Serial port")
-	f := flag.String("f", "/tmp/gosuntwins.json", "File to store output data")
+	f := flag.String("f", "/tmp/gosuntwins.csv", "File to store output data")
 	flag.Parse()
 
 	dataFile, err = os.OpenFile(*f, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
