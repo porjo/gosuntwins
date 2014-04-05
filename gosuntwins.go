@@ -1,17 +1,20 @@
 /*
 goSuntwins is a simple utility to read data from JFY Suntwins Solar inverter
- 
+
 Tested with Suntwins 5000TL on Linux
 
 Example usage:
 
-   ./gosuntwins -d -p /dev/ttyUSB01 -f /tmp/data.json
+  ./gosuntwins -d -p /dev/ttyUSB01 -f /tmp/data.json
 
 Output file will contain a json object per line e.g.:
 
-   {"Current":14.7,"Frequency":50.09,"KW now":7.8,"KW today":10.35,"PV AC":3643.1,"Temperature":46,"Time":"2014-04-05T10:49:52.29109101+10:00","Unknown 1":2494,"Unknown 2":75,"Volts AC":244,"Volts DC":255.1}
-   {"Current":14.5,"Frequency":50.11,"KW now":7.9,"KW today":10.36,"PV AC":3636.1,"Temperature":46,"Time":"2014-04-05T10:50:03.40009637+10:00","Unknown 1":2470,"Unknown 2":75,"Volts AC":244.9,"Volts DC":255.7}
+  {"Current":14.7,"Frequency":50.09,"KW now":7.8,"KW today":10.35,"PV AC":3643.1,"Temperature":46,"Time":"2014-04-05T10:49:52.29109101+10:00","Unknown 1":2494,"Unknown 2":75,"Volts AC":244,"Volts DC":255.1}
+  {"Current":14.5,"Frequency":50.11,"KW now":7.9,"KW today":10.36,"PV AC":3636.1,"Temperature":46,"Time":"2014-04-05T10:50:03.40009637+10:00","Unknown 1":2470,"Unknown 2":75,"Volts AC":244.9,"Volts DC":255.7}
 
+Credit:
+
+Code based on Solarmon: https://github.com/ridale/solarmon and other inspiration from Solarmonj: http://code.google.com/p/solarmonj/
 */
 
 package main
@@ -66,12 +69,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, " -d          Enable debug messages  (false)\n")
 		fmt.Fprintf(os.Stderr, " -p [port]   serial port            (/dev/ttyUSB0)\n")
-		fmt.Fprintf(os.Stderr, " -f [file]   data file              (/tmp/solarmon.csv)\n\n")
+		fmt.Fprintf(os.Stderr, " -f [file]   data file              (/tmp/gosuntwins.json)\n\n")
 	}
 
 	flag.BoolVar(&debug, "d", false, "Enable debug messages")
 	flag.StringVar(&serialPort, "p", "/dev/ttyUSB0", "Serial port")
-	f := flag.String("f", "/tmp/solarmon.csv", "File to store output data")
+	f := flag.String("f", "/tmp/gosuntwins.json", "File to store output data")
 	flag.Parse()
 
 	dataFile, err = os.OpenFile(*f, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
@@ -282,14 +285,13 @@ func outputInverter() error {
 	results["Unknown 2"] = float32(output.Unknown2)
 	results["PV AC"] = float32(output.PAC) / 10.0
 
-
 	jb, err := json.Marshal(results)
 	if err != nil {
 		return err
 	}
 
 	mylogf("%s\n", jb)
-	_, err = dataFile.WriteString(string(jb)+"\n")
+	_, err = dataFile.WriteString(string(jb) + "\n")
 	if err != nil {
 		return err
 	}
