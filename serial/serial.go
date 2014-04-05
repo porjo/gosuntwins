@@ -34,45 +34,35 @@ import (
 // This struct holds the binary data read from the inverter. 
 // Order of fields is important!
 type rawData struct {
-	// Temperature (degrees celcius)
 	Temp     uint16
-
 	Unknown1 uint16
-
-	// PV input voltage (DC)
 	VDC      uint16
-
-	// Energy being produced now (kWH)
 	NowE uint16
-
 	Unknown2 uint16
-
-	// Energy produced today (kWH)
 	TodayE   uint16
-
-	// PV output current (Amps)
 	I        uint16
-
-	// Grid voltage (AC)
 	VAC      uint16
-
-
-	// Grid frequency (Hz)
 	Freq     uint16
-
-	// Engergy being produced now (W)
 	PAC      uint16
 }
 
 // Holds decimal values 
 type Reading struct {
+	// Temperature (degrees celcius)
 	Temp float32
+	// PV input voltage (DC)
 	VDC float32
+	// Energy being produced now (kWH)
 	NowE float32
+	// Energy produced today (kWH)
 	TodayE float32
+	// PV output current (Amps)
 	I float32
+	// Grid voltage (AC)
 	VAC float32
+	// Grid frequency (Hz)
 	Freq float32
+	// Engergy being produced now (W)
 	PAC float32
 }
 
