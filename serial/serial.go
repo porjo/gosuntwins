@@ -1,7 +1,7 @@
 /*
 serial package handles communications with inverter
 
-Example usage:
+Example usage
   
   config := &serial.Config{Port: "/dev/ttyUSB0", Debug: true}
   s, _ := serial.OpenPort(config)
@@ -12,7 +12,9 @@ Example usage:
 
   // output contents of 'reading'
 
-Code based on Solarmon: https://github.com/ridale/solarmon and other inspiration from Solarmonj: http://code.google.com/p/solarmonj/
+Credits
+
+Code based on Solarmon: https://github.com/ridale/solarmon and plus inspiration from Solarmonj: http://code.google.com/p/solarmonj/
 */
 package serial
 
