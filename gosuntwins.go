@@ -1,15 +1,31 @@
+/*
+goSuntwins is a simple utility to read data from JFY Suntwins Solar inverter
+ 
+Tested with Suntwins 5000TL on Linux
+
+Example usage:
+
+   ./gosuntwins -d -p /dev/ttyUSB01 -f /tmp/data.json
+
+Output file will contain a json object per line e.g.:
+
+   {"Current":14.7,"Frequency":50.09,"KW now":7.8,"KW today":10.35,"PV AC":3643.1,"Temperature":46,"Time":"2014-04-05T10:49:52.29109101+10:00","Unknown 1":2494,"Unknown 2":75,"Volts AC":244,"Volts DC":255.1}
+   {"Current":14.5,"Frequency":50.11,"KW now":7.9,"KW today":10.36,"PV AC":3636.1,"Temperature":46,"Time":"2014-04-05T10:50:03.40009637+10:00","Unknown 1":2470,"Unknown 2":75,"Volts AC":244.9,"Volts DC":255.7}
+
+*/
+
 package main
 
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/tarm/goserial"
@@ -36,13 +52,15 @@ const headerlen int = 7
 const period int = 10 //seconds between reads
 
 var destaddr byte = 0
-var results map[string]float32 = make(map[string]float32)
+var results map[string]interface{} = make(map[string]interface{})
 
 var debug bool
 var serialPort string
 var dataFile *os.File
 
 func main() {
+
+	var err error
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n\n", os.Args[0])
@@ -56,48 +74,39 @@ func main() {
 	f := flag.String("f", "/tmp/solarmon.csv", "File to store output data")
 	flag.Parse()
 
-
-	dataFile, err := os.OpenFile(*f, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
+	dataFile, err = os.OpenFile(*f, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0660)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer dataFile.Close()
-
 
 	c := &serial.Config{Name: serialPort, Baud: 9600}
 	s, err := serial.OpenPort(c)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer s.Close()
 
-	mylogf("Writing results to file '%s'\n", dataFile)
+	mylogf("Writing results to file '%s'\n", *f)
 
 	err = initInverter(s)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error initializing inverter, ", err)
 	}
 
-	var w sync.WaitGroup
-	w.Add(1)
-
-	go func() {
-		for {
-			err = readInverter(s)
-			if err != nil {
-				log.Println(err)
-				break
-			}
-			err = outputInverter()
-			if err != nil {
-				log.Println(err)
-				break
-			}
-			time.Sleep(time.Second * time.Duration(period))
+	for {
+		err = readInverter(s)
+		if err != nil {
+			log.Fatal("Error reading from inverter, ", err)
+			break
 		}
-		w.Done()
-	}()
-
-	w.Wait()
+		err = outputInverter()
+		if err != nil {
+			log.Fatal("Error outputing data, ", err)
+			break
+		}
+		time.Sleep(time.Second * time.Duration(period))
+	}
 }
 
 func mylogf(format string, args ...interface{}) {
@@ -122,7 +131,7 @@ func initInverter(s io.ReadWriteCloser) error {
 
 	mylogf("Initializing inverter: => %X\n", outbuffer.Bytes())
 
-	n, err := s.Write(outbuffer.Bytes())
+	_, err = s.Write(outbuffer.Bytes())
 	if err != nil {
 		return err
 	}
@@ -138,23 +147,25 @@ func initInverter(s io.ReadWriteCloser) error {
 
 	mylogf("Identifying inverter: =>  %X\n", outbuffer.Bytes())
 
-	n, err = s.Write(outbuffer.Bytes())
+	n, err := s.Write(outbuffer.Bytes())
 	if err != nil {
 		return err
 	}
-	inbuf := make([]byte, 256)
-	n, err = s.Read(inbuf)
+
+	//mylogf("Wrote %d bytes\n", n)
+
+	n, inbuf, err := readtoEOF(s)
 	if err != nil {
 		return err
 	}
+
+	mylogf("Read data: <=  %X\n", inbuf[:n])
 	if n < headerlen {
 		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
 	}
 
 	// wait before sending next command
 	time.Sleep(time.Millisecond * 500)
-
-	mylogf("Read data: <=  %X\n", inbuf[:n])
 
 	function = 0x41 // Register inverter
 	// get the serial number from the response
@@ -176,33 +187,41 @@ func initInverter(s io.ReadWriteCloser) error {
 
 	mylogf("Register inverter: =>  %X\n", outbuffer.Bytes())
 
-	n, err = s.Write(outbuffer.Bytes())
+	_, err = s.Write(outbuffer.Bytes())
 	if err != nil {
 		return err
 	}
 
-	inbuf = nil
+	n, inbuf, err = readtoEOF(s)
+	if err != nil {
+		return err
+	}
+
+	mylogf("Read data: <=  %X\n", inbuf[:n])
+	if n < headerlen {
+		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
+	}
+
+	return nil
+}
+
+func readtoEOF(s io.ReadWriteCloser) (int, []byte, error) {
+	var inbuf, tmpbuf []byte
 	bytecount := 0
 	for {
-		tmpbuf := make([]byte, 256)
-		n, err = s.Read(tmpbuf)
+		tmpbuf = make([]byte, 256)
+		n, err := s.Read(tmpbuf)
+		//mylogf("Read %d bytes\n", n)
 		inbuf = append(inbuf, tmpbuf[:n]...)
 		bytecount += n
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			mylogf("Read %d bytes\n", bytecount)
-			return err
+			return bytecount, nil, err
 		}
 	}
-	if bytecount < headerlen {
-		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
-	}
-
-	mylogf("Read data: <=  %X\n", inbuf[:bytecount])
-
-	return nil
+	return bytecount, inbuf, nil
 }
 
 func readInverter(s io.ReadWriteCloser) error {
@@ -221,26 +240,17 @@ func readInverter(s io.ReadWriteCloser) error {
 		return err
 	}
 
-	inbuffer.Reset()
-	bytecount := 0
-	for {
-		tmpbuf := make([]byte, 256)
-		n, err := s.Read(tmpbuf)
-		inbuffer.Write(tmpbuf[:n])
-		bytecount += n
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			mylogf("Read %d bytes\n", bytecount)
-			return err
-		}
+	n, inbuf, err := readtoEOF(s)
+	if err != nil {
+		return err
 	}
+	inbuffer.Reset()
+	inbuffer.Write(inbuf[:n])
 
 	mylogf("Read data: <=  %X\n", inbuffer.Bytes())
 
-	if bytecount < headerlen {
-		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, bytecount)
+	if n < headerlen {
+		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
 	}
 
 	return nil
@@ -250,6 +260,7 @@ func outputInverter() error {
 	if len(inbuffer.Bytes()) < headerlen+20 {
 		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen+20, len(inbuffer.Bytes()))
 	}
+
 	data := inbuffer.Bytes()[headerlen:]
 
 	b := bytes.NewBuffer(data)
@@ -259,6 +270,7 @@ func outputInverter() error {
 		return err
 	}
 
+	results["Time"] = time.Now()
 	results["Temperature"] = float32(output.Temp) / 10.0
 	results["KW today"] = float32(output.TodayE) / 100.0
 	results["Volts DC"] = float32(output.VDC) / 10.0
@@ -270,14 +282,14 @@ func outputInverter() error {
 	results["Unknown 2"] = float32(output.Unknown2)
 	results["PV AC"] = float32(output.PAC) / 10.0
 
-	resultsStr := fmt.Sprintf("%s, ", time.Now())
-	for _, val := range results {
-		resultsStr += fmt.Sprintf("%.3f, ", val)
-	}
-	resultsStr += "\n"
 
-	mylogf(resultsStr)
-	_, err = dataFile.WriteString(resultsStr)
+	jb, err := json.Marshal(results)
+	if err != nil {
+		return err
+	}
+
+	mylogf("%s\n", jb)
+	_, err = dataFile.WriteString(string(jb)+"\n")
 	if err != nil {
 		return err
 	}
@@ -300,10 +312,7 @@ func createCommand(control byte, function byte, data []byte) error {
 	outbuffer.WriteByte(byte(len(data)))
 
 	if data != nil {
-		_, err := outbuffer.Write(data)
-		if err != nil {
-			return err
-		}
+		outbuffer.Write(data)
 	}
 
 	check1, check2 := checksum(outbuffer.Bytes())
