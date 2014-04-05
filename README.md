@@ -4,7 +4,7 @@ goSuntwins is a simple utility to read data from JFY Suntwins Solar inverter
  
 Tested with Suntwins 5000TL on Linux
 
-## Quick start
+### Howto
 
 First [install Golang](http://golang.org/doc/install#install). On Redhat Linux that should be as simple as `yum install golang`. Then:
 
@@ -26,6 +26,6 @@ Output file will contain a json object per line e.g.:
 {"Current":14.5,"Frequency":50.11,"KW now":7.9,"KW today":10.36,"PV AC":3636.1,"Temperature":46,"Time":"2014-04-05T10:50:03.40009637+10:00","Unknown 1":2470,"Unknown 2":75,"Volts AC":244.9,"Volts DC":255.7}
 ```
 
-### Credit
+### Credits
 
-Code based on Solarmon: https://github.com/ridale/solarmon and other inspiration from Solarmonj: http://code.google.com/p/solarmonj/
+Code based on Solarmon: https://github.com/ridale/solarmon and inspiration from Solarmonj: http://code.google.com/p/solarmonj/
