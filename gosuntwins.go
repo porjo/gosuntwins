@@ -22,7 +22,6 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -34,16 +33,36 @@ import (
 	"github.com/tarm/goserial"
 )
 
+// This struct holds the binary data read from the inverter. 
+// Order of fields is important!
 type Output struct {
+	// Temperature (degrees celcius)
 	Temp     uint16
+
 	Unknown1 uint16
+
+	// PV input voltage (DC)
 	VDC      uint16
-	CurrentE uint16
+
+	// Energy being produced now (kWH)
+	NowE uint16
+
 	Unknown2 uint16
+
+	// Energy produced today (kWH)
 	TodayE   uint16
+
+	// PV output current (Amps)
 	I        uint16
+
+	// Grid voltage (AC)
 	VAC      uint16
+
+
+	// Grid frequency (Hz)
 	Freq     uint16
+
+	// Engergy being produced now (W)
 	PAC      uint16
 }
 
@@ -55,7 +74,6 @@ const headerlen int = 7
 const period int = 10 //seconds between reads
 
 var destaddr byte = 0
-var results map[string]interface{} = make(map[string]interface{})
 
 var debug bool
 var serialPort string
@@ -273,25 +291,27 @@ func outputInverter() error {
 		return err
 	}
 
-	results["Time"] = time.Now()
-	results["Temperature"] = float32(output.Temp) / 10.0
-	results["KW today"] = float32(output.TodayE) / 100.0
-	results["Volts DC"] = float32(output.VDC) / 10.0
-	results["Current"] = float32(output.I) / 10.0
-	results["Volts AC"] = float32(output.VAC) / 10.0
-	results["Frequency"] = float32(output.Freq) / 100.0
-	results["KW now"] = float32(output.CurrentE) / 10.0
-	results["Unknown 1"] = float32(output.Unknown1)
-	results["Unknown 2"] = float32(output.Unknown2)
-	results["PV AC"] = float32(output.PAC) / 10.0
+	results := make([]float32,10)
 
-	jb, err := json.Marshal(results)
-	if err != nil {
-		return err
+	results[0] = float32(output.Temp) / 10.0
+	results[1] = float32(output.TodayE) / 100.0
+	results[2] = float32(output.VDC) / 10.0
+	results[3] = float32(output.I) / 10.0
+	results[4] = float32(output.VAC) / 10.0
+	results[5] = float32(output.Freq) / 100.0
+	results[6] = float32(output.NowE) / 10.0
+	results[7] = float32(output.Unknown1)
+	results[8] = float32(output.Unknown2)
+	results[9] = float32(output.PAC) / 10.0
+
+	resultsStr := fmt.Sprintf("%s, ", time.Now())
+	for i:= 0; i< len(results); i++ {
+		resultsStr += fmt.Sprintf("%.3f, ", results[i])
 	}
 
-	mylogf("%s\n", jb)
-	_, err = dataFile.WriteString(string(jb) + "\n")
+	mylogln(resultsStr)
+
+	_, err = dataFile.WriteString(resultsStr + "\n")
 	if err != nil {
 		return err
 	}
