@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/porjo/gosuntwins.svg)](https://travis-ci.org/porjo/gosuntwins)
+
 # GoSuntwins
 
 Gosuntwins is a simple utility to read data from JFY Suntwins Solar inverter.
