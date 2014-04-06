@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"io"
 	"testing"
-	"fmt"
 )
 
 // Implements io.ReaderWriterCloser interface, allowing us to mock a serial port
@@ -20,7 +19,7 @@ var EOF bool = false
 func TestSerial(t *testing.T) {
 
 	s = &rWC{}
-	config = &Config{Debug: true}
+	config = &Config{}
 
 	err := initInverter()
 	if err != nil {
@@ -57,8 +56,7 @@ func (r *rWC) Read(p []byte) (int, error) {
 	readStage++
 
 	copy(p, b)
-	fmt.Printf("%X %d %d\n", b, len(b), len(p))
-	return len(b)+2, err
+	return len(b), err
 }
 
 func (r *rWC) Write(p []byte) (int, error) {
