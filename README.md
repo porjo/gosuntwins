@@ -1,9 +1,8 @@
 # GoSuntwins
 
-goSuntwins is a simple utility to read data from JFY Suntwins Solar inverter
+Gosuntwins is a simple utility to read data from JFY Suntwins Solar inverter.
+It has been tested with Suntwins 5000TL inverter from Linux operating system
  
-Tested with Suntwins 5000TL on Linux
-
 ### Howto
 
 First [install Golang](http://golang.org/doc/install#install). On Redhat Linux that should be as simple as `yum install golang`. Then:

@@ -1,5 +1,6 @@
 /*
-serial package handles communications with inverter
+Serial package handles serial communications with JFY Suntwins inverter.
+It has been tested with Suntwins 5000TL inverter from Linux operating system
 
 Example usage
   
@@ -137,7 +138,7 @@ func (reading *Reading) LoadData() error {
 		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen+20, inbuf)
 	}
 
-	b := bytes.NewBuffer(inbuf)
+	b := bytes.NewBuffer(inbuf[headerlen:])
 	raw := rawData{}
 	err = binary.Read(b, binary.BigEndian, &raw)
 	if err != nil {
