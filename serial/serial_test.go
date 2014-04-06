@@ -31,6 +31,10 @@ func TestSerial(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	if reading.Temp != 47.7 {
+		t.Fatalf("Temperature reading does not match. Expected 47.7, got %f\n", reading.Temp)
+	}
 }
 
 func (r *rWC) Read(p []byte) (int, error) {
