@@ -57,6 +57,8 @@ func main() {
 	}
 	defer dataFile.Close()
 
+	fmt.Printf("Writing results to file '%s'\n", *f)
+
 	config := &serial.Config{Port: serialPort, Debug: debug}
 
 	s, err := serial.OpenPort(config)
@@ -64,8 +66,6 @@ func main() {
 		log.Fatal("Error initializing inverter, ", err)
 	}
 	defer s.Close()
-
-	fmt.Printf("Writing results to file '%s'\n", *f)
 
 	for {
 		reading := &serial.Reading{}

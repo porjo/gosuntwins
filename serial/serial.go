@@ -31,6 +31,7 @@ import (
 	"github.com/tarm/goserial"
 )
 
+
 // This struct holds the binary data read from the inverter.
 // Order of fields is important!
 type rawData struct {
@@ -97,7 +98,7 @@ func OpenPort(c *Config) (io.ReadWriteCloser, error) {
 		return nil, err
 	}
 
-	err = initInverter(s)
+	err = initInverter()
 	if err != nil {
 		return nil, fmt.Errorf("Error initializing inverter, %s", err)
 	}
@@ -134,8 +135,13 @@ func (reading *Reading) LoadData() error {
 
 	logf("Read data: <=  %X\n", inbuf)
 
-	if len(inbuf) < headerlen+20 {
-		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen+20, inbuf)
+	expectedReadSize := headerlen + 20
+	if len(inbuf) >= headerlen {
+		expectedReadSize = int(inbuf[6]) + headerlen + 1
+	}
+
+	if len(inbuf) < expectedReadSize {
+		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", expectedReadSize, inbuf)
 	}
 
 	b := bytes.NewBuffer(inbuf[headerlen:])
@@ -163,7 +169,7 @@ func logf(format string, args ...interface{}) {
 	}
 }
 
-func initInverter(s io.ReadWriteCloser) error {
+func initInverter() error {
 	var control byte = 0x30
 	var function byte = 0x44 //Initialize inverter
 	err := createCommand(control, function, nil)
@@ -189,7 +195,7 @@ func initInverter(s io.ReadWriteCloser) error {
 
 	logf("Identifying inverter: =>  %X\n", outbuffer.Bytes())
 
-	n, err := s.Write(outbuffer.Bytes())
+	_, err = s.Write(outbuffer.Bytes())
 	if err != nil {
 		return err
 	}
@@ -201,9 +207,15 @@ func initInverter(s io.ReadWriteCloser) error {
 		return err
 	}
 
-	logf("Read data: <=  %X\n", inbuf[:n])
-	if n < headerlen {
-		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", headerlen, n)
+	logf("Read data: <=  %X\n", inbuf)
+
+	expectedReadSize := headerlen + 20
+	if len(inbuf) >= headerlen {
+		expectedReadSize = int(inbuf[6]) + headerlen + 1
+	}
+
+	if len(inbuf) < expectedReadSize {
+		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", expectedReadSize, len(inbuf))
 	}
 
 	// wait before sending next command
@@ -212,7 +224,7 @@ func initInverter(s io.ReadWriteCloser) error {
 	function = 0x41 // Register inverter
 	// get the serial number from the response
 	//serno := make([]byte,inbuf[6])
-	serno := inbuf[headerlen:(int(inbuf[6]) + headerlen + 1)]
+	serno := inbuf[headerlen:expectedReadSize]
 
 	//logf("headerlen %d inbuf6 %#v\n", headerlen, inbuf[6])
 
