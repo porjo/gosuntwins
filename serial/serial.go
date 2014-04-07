@@ -128,7 +128,7 @@ func (reading *Reading) LoadData() error {
 		return err
 	}
 
-	inbuf, err := readtoEOF(s)
+	inbuf, err := readSerial(s)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (reading *Reading) LoadData() error {
 	}
 
 	if len(inbuf) < expectedReadSize {
-		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", expectedReadSize, inbuf)
+		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", expectedReadSize, len(inbuf))
 	}
 
 	b := bytes.NewBuffer(inbuf[headerlen:])
@@ -202,7 +202,7 @@ func initInverter() error {
 
 	//logf("Wrote %d bytes\n", n)
 
-	inbuf, err := readtoEOF(s)
+	inbuf, err := readSerial(s)
 	if err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func initInverter() error {
 		return err
 	}
 
-	inbuf, err = readtoEOF(s)
+	inbuf, err = readSerial(s)
 	if err != nil {
 		return err
 	}
@@ -259,18 +259,20 @@ func initInverter() error {
 	return nil
 }
 
-func readtoEOF(s io.ReadWriteCloser) ([]byte, error) {
+func readSerial(s io.ReadWriteCloser) ([]byte, error) {
 	var inbuf, tmpbuf []byte
 	for {
 		tmpbuf = make([]byte, 256)
 		n, err := s.Read(tmpbuf)
-		//logf("Read %d bytes\n", n)
 		inbuf = append(inbuf, tmpbuf[:n]...)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			return nil, err
+		}
+		if inbuf[len(inbuf)-1] == '\n' {
+			break
 		}
 	}
 	return inbuf, nil
