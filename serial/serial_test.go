@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"io"
 	"testing"
+//	"fmt"
 )
 
 // Implements io.ReaderWriterCloser interface, allowing us to mock a serial port

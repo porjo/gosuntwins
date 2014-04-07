@@ -3,7 +3,7 @@ Serial package handles serial communications with JFY Suntwins inverter.
 It has been tested with Suntwins 5000TL inverter from Linux operating system
 
 Example usage
-  
+
   config := &serial.Config{Port: "/dev/ttyUSB0", Debug: true}
   s, _ := serial.OpenPort(config)
   defer s.Close()
@@ -30,7 +30,6 @@ import (
 
 	"github.com/tarm/goserial"
 )
-
 
 // This struct holds the binary data read from the inverter.
 // Order of fields is important!
@@ -144,7 +143,22 @@ func (reading *Reading) LoadData() error {
 		return fmt.Errorf("Too few bytes read. Expected >= %d, got %d\n", expectedReadSize, len(inbuf))
 	}
 
-	b := bytes.NewBuffer(inbuf[headerlen:])
+	data := inbuf[headerlen : int(inbuf[6])+headerlen-2]
+
+	/*
+		// Checksum calculation appears to be wrong as comparison always fails!?
+		check1, check2 := checksum(data)
+
+		if inbuf[len(inbuf)-4] != check1 {
+			return fmt.Errorf("Checksum failure. check1 %X != %X \n", check1, inbuf[len(inbuf)-4])
+		}
+
+		if inbuf[len(inbuf)-3] != check2 {
+			return fmt.Errorf("Checksum failure. check2 %X != %X\n", check2, inbuf[len(inbuf)-3])
+		}
+	*/
+
+	b := bytes.NewBuffer(data)
 	raw := rawData{}
 	err = binary.Read(b, binary.BigEndian, &raw)
 	if err != nil {
@@ -271,9 +285,17 @@ func readSerial(s io.ReadWriteCloser) ([]byte, error) {
 			}
 			return nil, err
 		}
-		if inbuf[len(inbuf)-1] == '\n' {
-			break
-		}
+		/*
+			// This was required at one point when EOF was not being returned for
+			// some reasone, however that has since resolved itself...
+			if len(inbuf) > 1 {
+				term := []byte{'\n','\r'}
+				if bytes.Compare(inbuf[len(inbuf)-2:], term) == 0 {
+					logf("readSerial, Breaking on line terminator\n")
+					break
+				}
+			}
+		*/
 	}
 	return inbuf, nil
 }
