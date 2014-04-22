@@ -26,6 +26,7 @@ import (
 	"reflect"
 
 	"github.com/porjo/gosuntwins/serial"
+	"github.com/porjo/gosuntwins/pvoutput"
 )
 
 const period int = 10 //seconds between reads
@@ -74,6 +75,13 @@ func main() {
 			log.Fatal("Error reading from inverter, ", err)
 			break
 		}
+
+		err = pvoutput.Upload(reading)
+		if err != nil {
+			log.Fatal("Error uploading data to PVoutput, ", err)
+			break
+		}
+
 		err = outputInverter(reading)
 		if err != nil {
 			log.Fatal("Error outputing data, ", err)

@@ -225,6 +225,7 @@ func initInverter() error {
 
 	expectedReadSize := headerlen + 20
 	if len(inbuf) >= headerlen {
+		// +1 is for the device ID to be added later
 		expectedReadSize = int(inbuf[6]) + headerlen + 1
 	}
 
@@ -245,10 +246,10 @@ func initInverter() error {
 	// set the device id
 	serno[inbuf[6]] = 1
 
-	//logf("serno %#v len %d\n", serno, len(serno))
+	//logf("Serno %X len %d\n", serno, len(serno))
 
 	// now register the inverter as device id 1
-	err = createCommand(control, function, serno[:inbuf[6]+1])
+	err = createCommand(control, function, serno)
 	if err != nil {
 		return err
 	}
@@ -280,22 +281,17 @@ func readSerial(s io.ReadWriteCloser) ([]byte, error) {
 		n, err := s.Read(tmpbuf)
 		inbuf = append(inbuf, tmpbuf[:n]...)
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
+		//	if err == io.EOF {
+		//		break
+		//	}
 			return nil, err
 		}
-		/*
-			// This was required at one point when EOF was not being returned for
-			// some reasone, however that has since resolved itself...
-			if len(inbuf) > 1 {
-				term := []byte{'\n','\r'}
-				if bytes.Compare(inbuf[len(inbuf)-2:], term) == 0 {
-					logf("readSerial, Breaking on line terminator\n")
-					break
-				}
+		if len(inbuf) > 1 {
+			term := []byte{'\n','\r'}
+			if bytes.Compare(inbuf[len(inbuf)-2:], term) == 0 {
+				break
 			}
-		*/
+		}
 	}
 	return inbuf, nil
 }
