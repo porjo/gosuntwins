@@ -2,7 +2,7 @@ package serial
 
 import (
 	"encoding/hex"
-	"io"
+//	"io"
 	"testing"
 //	"fmt"
 )
@@ -12,10 +12,6 @@ type rWC struct{}
 
 // Keep track of Which value to send back to client
 var readStage int = 0
-
-// Client keeps reading until it sees an EOF. This is set to true on each normal read so the subsequent
-// read gets the EOF
-var EOF bool = false
 
 func TestSerial(t *testing.T) {
 
@@ -42,12 +38,6 @@ func (r *rWC) Read(p []byte) (int, error) {
 
 	var b []byte
 	var err error
-
-	if EOF {
-		EOF = false
-		return 0, io.EOF
-	}
-	EOF = true
 
 	switch readStage {
 	case 0:
