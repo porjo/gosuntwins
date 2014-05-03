@@ -27,6 +27,19 @@ Output file will contain one reading per line e.g.:
 2014-04-05 13:33:54.97314362 +1000 EST, 47.700, 19.290, 253.400, 3.500, 244.000, 49.990, 1.900, 1719.000, 18.000, 808.700, 
 ```
 
+### PVOutput.org
+
+Support for http://pvoutput.org is enabled by default. Gosuntwins will look for the following environment variables: `PVSTATUSURL`, `PVAPIKEY` & `PVSYSTEMID`. If these are set, then the following values will be uploaded every 5mins:
+
+```
+v1 - Energy Consumption (TodayE * 1000)
+v2 - Power Generation (PAC)
+v5 - Temperature
+v6 - Voltage (VDC)
+```
+
+Refer to [pvoutput.org API doco](http://pvoutput.org/help.html#api-addstatus) for more info on the above values.
+
 ### Credits
 
 Code based on Solarmon: https://github.com/ridale/solarmon and inspiration from Solarmonj: http://code.google.com/p/solarmonj/
