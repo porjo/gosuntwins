@@ -1,3 +1,11 @@
+// Handles upload of data to pvoutput.org
+// Set the following environment variables:
+//
+//   PVSTATUSURL - Pvoutput API status endpoint
+//   PVAPIKEY - api key
+//   PVSYSTEMID - unique system identifier
+//
+// Refer to pvoutput.org API doco for more info on the above values.
 package pvoutput
 
 import (
@@ -29,7 +37,7 @@ var (
 )
 
 //seconds between uploads
-const interval int = 300
+const Interval int = 300
 
 var NotInitialized = fmt.Errorf("Not initialized. Environment variables not set")
 
@@ -40,6 +48,7 @@ func init() {
 	pv.systemID = os.Getenv("PVSYSTEMID")
 }
 
+// Upload data. Returns NotInitialzed error if environment variables not set
 func Upload(r *serial.Reading) error {
 
 	if pv.statusURL == "" {
@@ -48,7 +57,7 @@ func Upload(r *serial.Reading) error {
 
 	AddReading(r)
 
-	if time.Now().Sub(lastUpload) >= (time.Second * time.Duration(interval)) {
+	if time.Now().Sub(lastUpload) >= (time.Second * time.Duration(Interval)) {
 
 		avg := avgReading(addCount, totalReading)
 
