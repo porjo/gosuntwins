@@ -55,7 +55,7 @@ func Upload(r *serial.Reading) error {
 		return NotInitialized
 	}
 
-	AddReading(r)
+	addReading(r)
 
 	if time.Now().Sub(lastUpload) >= (time.Second * time.Duration(Interval)) {
 
@@ -105,8 +105,8 @@ func Upload(r *serial.Reading) error {
 	return nil
 }
 
-// Add new reading to running total
-func AddReading(r *serial.Reading) {
+// Add new reading to running total.
+func addReading(r *serial.Reading) {
 
 	totalReading.Temp += r.Temp
 	totalReading.VDC += r.VDC
