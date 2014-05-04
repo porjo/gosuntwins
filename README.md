@@ -7,6 +7,10 @@ It has been tested with Suntwins 5000TL inverter from Linux operating system
  
 ### Howto
 
+Precompiled binaries for Linux are available for download on the [releases page](https://github.com/porjo/gosuntwins/releases).
+
+Otherwise, compile Gosuntwins yourself as follows:
+
 First [install Golang](http://golang.org/doc/install#install). On Redhat Linux that should be as simple as `yum install golang`. Then:
 
 - Install the repository `go get github.com/porjo/gosuntwins`
