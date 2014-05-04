@@ -22,7 +22,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"reflect"
+	"syscall"
 	"time"
 
 	"github.com/porjo/gosuntwins/pvoutput"
@@ -62,32 +64,46 @@ func main() {
 
 	config := &serial.Config{Port: serialPort, Debug: debug}
 
+	fmt.Printf("Opening port %s\n", serialPort)
 	s, err := serial.OpenPort(config)
 	if err != nil {
 		log.Fatal("Error initializing inverter, ", err)
 	}
 	defer s.Close()
 
-	for {
-		reading := &serial.Reading{}
-		err := reading.LoadData()
-		if err != nil {
-			log.Printf("Error reading from inverter, ", err)
-			break
-		}
+	quitChan := make(chan bool, 1)
+	sigChan := make(chan os.Signal, 1)
+	go func() {
+		for {
+			reading := &serial.Reading{}
+			err := reading.LoadData()
+			if err != nil {
+				log.Println("Error reading from inverter, ", err)
+				quitChan <- true
+			}
 
-		err = pvoutput.Upload(reading)
-		if err != nil {
-			log.Printf("Error uploading data to PVoutput, ", err)
-		}
+			err = pvoutput.Upload(reading)
+			if err != nil && err != pvoutput.NotInitialized {
+				log.Println("Error uploading data to PVoutput, ", err)
+			}
 
-		err = outputInverter(reading)
-		if err != nil {
-			log.Printf("Error outputing data, ", err)
-			break
+			err = outputInverter(reading)
+			if err != nil {
+				log.Println("Error outputing data, ", err)
+				quitChan <- true
+			}
+			time.Sleep(time.Second * time.Duration(period))
 		}
-		time.Sleep(time.Second * time.Duration(period))
+	}()
+
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-sigChan:
+	case <-quitChan:
 	}
+	log.Println("Signal received, quitting")
+
 }
 
 func outputInverter(reading *serial.Reading) error {

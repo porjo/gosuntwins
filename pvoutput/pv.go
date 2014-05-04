@@ -31,6 +31,8 @@ var (
 //seconds between uploads
 const interval int = 300
 
+var NotInitialized = fmt.Errorf("Not initialized. Environment variables not set")
+
 func init() {
 	client = &http.Client{}
 	pv.statusURL = os.Getenv("PVSTATUSURL")
@@ -41,7 +43,7 @@ func init() {
 func Upload(r *serial.Reading) error {
 
 	if pv.statusURL == "" {
-		return fmt.Errorf("PV status URL is not set")
+		return NotInitialized
 	}
 
 	AddReading(r)
