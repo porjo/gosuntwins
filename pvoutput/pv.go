@@ -48,7 +48,7 @@ func init() {
 	pv.systemID = os.Getenv("PVSYSTEMID")
 }
 
-// Upload data. Returns NotInitialzed error if environment variables not set
+// Upload data every Interval seconds. Returns NotInitialzed error if environment variables not set
 func Upload(r *serial.Reading) error {
 
 	if pv.statusURL == "" {
