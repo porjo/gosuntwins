@@ -1,10 +1,9 @@
-= heading 1 =
 
 == heading 2 ==
 
 Content
 
-==i= heading 3 ===
+=== heading 3 ===
 
 Content
 
