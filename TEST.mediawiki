@@ -3,6 +3,8 @@
 
 Content
 
+__TOC__
+
 === heading 3 ===
 
 Content
@@ -10,3 +12,9 @@ Content
 * list1
 * list2
 * list3
+
+=== heading 4 ===
+
+== heading 5 ==
+
+=== heading 6 ===
